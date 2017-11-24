@@ -1,23 +1,25 @@
 This is a demonstration of the [`fallocate(FALLOC_FL_PUNCH_HOLE,
 ...)`] technique for keeping an "infinite scroll" journal of
 manageable size, as well as a kind of persistent pipe.  The code is
-intentionally simple and avoids some performance optimizations.
+intentionally simple and avoids many performance optimizations.
 
-Each invocation of `producer` writes a length-prefixed message into
-the log, and `consumer` reads one out, trimming the log as it goes.
-With `-f`, `consumer` will consume continuously.  Exempli gratia:
-(requires [pv])
+The `log` directory contains programs that work on a log where the
+offset of the next available message is written at the beginning of
+the file, while `pipe` contains programs that work on a sort of
+"persistent pipe" [as described by Carlo Alberto Ferrari], where we
+use `SEEK_DATA` to find the next message, and trim the logical size
+with `FALLOC_FL_COLLAPSE_RANGE`.
+
+In both cases, each invocation of `producer` writes a length-prefixed
+message into the log, and `consumer` reads one out, trimming the log
+as it goes.  With `-f`, `consumer` will consume continuously.  Exempli
+gratia: (requires [pv])
 
 ``` shell
 $ (IFS= yes | while read x; do echo "$x" | ./producer ./loggy.log; done) &
 $ ./consumer -f ./loggy.log | pv >/dev/null
 $ kill $!
 ```
-
-There's an idea of trimming the logical size, from Carlo Alberto
-Ferraris's [Persistent "pipes" in Linux], with
-`FALLOC_FL_COLLAPSE_RANGE`.  That's not in this version, but I'll
-probably add it shortly.
 
 This is extremely Linux-specific.  Portability patches would be
 interesting.
@@ -51,11 +53,12 @@ make sure you're [writing less than PIPE_BUF bytes].
 
 Particularly if you're okay with at-least-once consuming, you could
 avoid the offset at the beginning by using [`lseek`]`(..., SEEK_DATA,
-...)` in the consumer, and starting the file with a hole.
+...)` in the consumer, and starting the file with a hole.  This is the
+approach the `pipe` consumer takes.
 
 
 [`fallocate(FALLOC_FL_PUNCH_HOLE, ...)`]: http://man7.org/linux/man-pages/man2/fallocate.2.html
-[Persistent "pipes" in Linux]: https://gist.github.com/CAFxX/571a1558db9a7b393579
+[as described by Carlo Alberto Ferrari]: https://gist.github.com/CAFxX/571a1558db9a7b393579
 [pv]: http://www.ivarch.com/programs/pv.shtml
 [Sparse files]: https://en.wikipedia.org/wiki/Sparse_file
 [this LWN comment]: https://lwn.net/Articles/416234/
